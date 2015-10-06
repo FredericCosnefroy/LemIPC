@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <libc.h>
 #include <stdlib.h>
+#include <ncurses.h>
+#include <locale.h>
 
 #define CLEF 666
 
@@ -29,8 +31,8 @@ typedef struct 	s_map
 typedef struct 	s_env
 {
 	t_map		map;
-	char 		nPlayer;
-	char 		mPlayer;
+	int 		nPlayer;
+	int 		mPlayer;
 }				t_env;
 
 void	map_copy(t_env *shm, t_map *map)
@@ -62,7 +64,7 @@ int		map_cmp(t_env *shm, t_map *map)
 		j = 0;
 		while (j < shm->map.width)
 		{
-			if (map->map[i][j] != shm->map.map[i][j])
+			if ((map->map[i][j] & 7) != (shm->map.map[i][j] & 7))
 				return (0);
 			j++;
 		}
@@ -71,62 +73,119 @@ int		map_cmp(t_env *shm, t_map *map)
 	return (1);
 }
 
+void	print_background(int color)
+{
+	int i;
+	int j;
+
+	i = 0;
+	attron(COLOR_PAIR(color));
+	while (i < LINES)
+	{
+		j = 0;
+		while (j < COLS)
+		{
+			mvaddch(i, j, ' ');
+			j++;
+		}
+		i++;
+	}
+	i = 0;
+	while (i < COLS)
+	{
+		mvaddch(0, i, '^');
+		mvaddch(6, i, 'v');
+		i++;
+	}
+	i = 1;
+	while (i < 6)
+	{
+		mvaddch(i, 0, '|');
+		mvaddch(i, COLS - 1, '|');
+		i++;
+	}
+	mvprintw(1, 2," _                   ___ ____   ____ ");	
+	mvprintw(2, 2,"| |    ___ _ __ ___ |_ _|  _ \\ / ___|");    
+	mvprintw(3, 2,"| |   / _ \\ '_ ` _ \\ | || |_) | |    "); 
+	mvprintw(4, 2,"| |__|  __/ | | | | || ||  __/| |___ ");
+	mvprintw(5, 2,"|_____\\___|_| |_| |_|___|_|    \\____|");
+
+
+	attroff(COLOR_PAIR(color));
+
+}
+
 void	print_map(t_env *shm)
 {
 	int i;
 	int j;
 
 	i = 0;
+	print_background(8);
 	while (i < shm->map.height)
 	{
 		j = 0;
 		while (j < shm->map.width)
 		{
+			attron(COLOR_PAIR(shm->map.map[i][j] & 7));
 			if (shm->map.map[i][j] != 0)
-			{
-				switch(shm->map.map[i][j])
-				{
-					case 1: printf(ANSI_COLOR_RED); break;
-					case 2: printf(ANSI_COLOR_CYAN); break;
-					default:  printf(ANSI_COLOR_YELLOW);
-				}
-				printf("o ");
-				//printf("%c ", shm->map.map[i][j] + '0');
-				printf(ANSI_COLOR_RESET);
-			}
+				mvprintw(j + 8, ((COLS - (shm->map.width << 1)) >> 1) + (i << 1) , "%C", 9724);
 			else
-				printf(". ");
+				mvaddch(j + 8, ((COLS - (shm->map.width << 1)) >> 1) + (i << 1) , ' ');
+			mvaddch(j + 8, 1 + ((COLS - (shm->map.width << 1)) >> 1) + (i << 1), ' ');
+			attroff(COLOR_PAIR(shm->map.map[i][j] & 7));
 			j++;
 		}
-		puts("");
 		i++;
 	}
-	puts("");
-	puts("");
+	refresh();
 }
+
+
 
 int main(int argc, char **argv)
 {
 	t_env *shm;
 	t_map map;
 	int shm_id;
+	setlocale(LC_ALL, "en_US.UTF-8");
+	initscr();
 
+	start_color();
+	init_color(11, 683, 628, 577);
+	init_color(12, 300, 300, 300);
+	init_pair(8, 12, 11);
+	init_pair(1, COLOR_RED, COLOR_BLACK);
+	init_pair(2, COLOR_GREEN, COLOR_BLACK);
+	init_pair(3, COLOR_YELLOW, COLOR_BLACK);
+	init_pair(4, COLOR_BLUE, COLOR_BLACK);
+	init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
+	init_pair(6, COLOR_CYAN, COLOR_BLACK);
+	init_pair(7, COLOR_WHITE, COLOR_BLACK);
+	curs_set(0);
+	print_background(8);
+	refresh();
 	while ((shm_id = shmget(CLEF, sizeof(t_env), 0200)) == -1);
 	shm = shmat(shm_id, NULL, 0);
 	map_copy(shm, &map);
-	while (shm->nPlayer != shm->mPlayer);
+	while (shm->nPlayer < 1);
 	int i;
 	i = 0;
 	while (shm->nPlayer != 0)
 	{
 		if (!map_cmp(shm, &map))
 		{
-			system("clear");
 			print_map(shm);
 			map_copy(shm, &map);
 		}
 		i++;
 	}
 	shmdt(shm);
+	getch();
+	curs_set(1);
+	clear();
+	refresh();
+	endwin();
+
 	return (0);
 }
