@@ -15,9 +15,9 @@
 #define BUSY				8
 #define TEAM 				7
 
-#define LONGUEUR_SEGMENT 	512 
+#define LONGUEUR_SEGMENT 	512
 
-#define NTDELAY				250000
+#define NTDELAY				400000
 
 #define ABS(x)				(x < 0 ? -x : x)
 #define POS(x, y)			((t_pos){x, y})
@@ -531,10 +531,8 @@ int 	send_message(int que_id, t_msg *msg)
 	int 	length;
 
 	length = sizeof(t_msg) - sizeof(long);
-	if((result = msgsnd(que_id, msg, length, 0)) == -1)
-	{
+	if((result = msgsnd(que_id, msg, length, IPC_NOWAIT)) == -1)
 		return(-1);
-	}
 	return(result);
 }
 
@@ -572,18 +570,6 @@ void 	get_closest_available_allies(t_env *shm, t_ord *order, t_pos index, t_pos 
 		*order = update_closest_allies(*order, index);
 	else if (dist1 < dist3)
 		order->sAlly = index;
-	/*else if (dist1 == dist2)
-	{
-		if (dist2 == min_dist(enemy, order->sAlly))
-		{
-			if (rand() % 2)
-				*order = update_closest_allies(*order, index);
-		}
-		else
-		{
-			*order = update_closest_allies(*order, index);
-		}
-	}*/
 }
 
 void	get_closest_unavailable_ally(t_env *shm, t_ord *order, t_pos index, t_player player)
@@ -699,7 +685,6 @@ t_pos	relocate_target(t_map map, t_player player, t_player *target)
 
 void	abandon_pursuit(t_data *data)
 {
-	//free(data->player.target);
 	data->player.target = NULL;
 	data->player.state = 0;
 	data->shm->map.map[data->player.position.x][data->player.position.y] = data->player.team;
@@ -761,8 +746,8 @@ void	send_orders(t_data *data, t_ord *order)
 	else
 	{
 		msg = &(MSG(get_player_id(data->shm, order->fAlly) + 1, PLAYER(target_team, order->target)));
-		send_message(data->que_id, msg);
-		data->shm->map.map[order->fAlly.x][order->fAlly.y] |= BUSY;
+		if (send_message(data->que_id, msg) != -1)
+			data->shm->map.map[order->fAlly.x][order->fAlly.y] |= BUSY;
 	}
 	if ((issAlly = order->sAlly.x == data->player.position.x && order->sAlly.y == data->player.position.y))
 	{
@@ -774,8 +759,8 @@ void	send_orders(t_data *data, t_ord *order)
 	else
 	{
 		msg = &(MSG(get_player_id(data->shm, order->sAlly) + 1,  PLAYER(target_team, order->target)));
-		send_message(data->que_id, msg);
-		data->shm->map.map[order->sAlly.x][order->sAlly.y] |= BUSY;
+		if (send_message(data->que_id, msg) != -1)
+			data->shm->map.map[order->sAlly.x][order->sAlly.y] |= BUSY;
 	}
 	if (!isfAlly && !issAlly)
 	{
@@ -799,7 +784,6 @@ void	make_decision(t_data *data)
 	t_surrInfo 	mapInfo;
 	t_ord		order;
 	t_msg 		read;
-
 	read = MSG(-1, PLAYER(-1, POS(-1, -1)));
 	read_message(data->que_id, get_player_id(data->shm, data->player.position) + 1, &read);
 	contactInfo = scan_suroundings(data->shm, data->player, 1);
@@ -835,6 +819,7 @@ void	make_decision(t_data *data)
 				data->player.state = BUSY;
 				data->player.target = malloc(sizeof(t_player));
 				*(data->player.target) = read.target;
+	
 				if (!hunt(data))
 				{
 					order = get_closest_allies(data->shm, data->player, mapInfo.closest);
@@ -924,7 +909,7 @@ int main(int argc, char **argv)
 	{
 		lock(data->sem_id, &(data->sops));
 		make_decision(data);
-		usleep((NTDELAY / data->shm->nPlayer));
+		usleep(NTDELAY / data->shm->nPLayer);
 		unlock(data->sem_id, &(data->sops));
 		usleep(50);
 		i++;

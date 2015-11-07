@@ -61,13 +61,11 @@ int		map_cmp(t_env *shm, t_map *map)
 	i = 0;
 	while (i < shm->map.height)
 	{
-		j = 0;
-		while (j < shm->map.width)
-		{
-			if ((map->map[i][j] & 7) != (shm->map.map[i][j] & 7))
+
+			//if ((map->map[i][j] & 7) != (shm->map.map[i][j] & 7))
+			if (memcmp(map->map[i], shm->map.map[i], shm->map.width))
 				return (0);
-			j++;
-		}
+
 		i++;
 	}
 	return (1);
